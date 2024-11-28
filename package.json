@@ -1,0 +1,16 @@
+{
+  "name": "spritesheet1",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "verticalfx",
+  "license": "ISC",
+  "description": "project to create spritesheets from images",
+  "dependencies": {
+    "canvas": "^2.11.2",
+    "fluent-ffmpeg": "^2.1.3",
+    "fs-extra": "^11.2.0"
+  }
+}
