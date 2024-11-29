@@ -10,7 +10,7 @@ you need:
 - and the following packages:
 
 ```
-npm install fluent-ffmpeg fs-extra canvas
+npm install fluent-ffmpeg fs-extra canvas archiver
 ```
 
 # setup
@@ -44,6 +44,7 @@ node index.js
 # special notes
 - the script will not overwrite existing spritesheets
 - the script supports alpha channel (transparency) - it will preserve the alpha channel if your input video has it supported 
+- it will automatically create a zip file with all the spritesheets in the zip subdirectory of each video's results folder
 
 # issues
 if you find any issues, please open an issue & i'll try to fix it asap

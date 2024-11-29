@@ -2,6 +2,7 @@ const ffmpeg = require("fluent-ffmpeg");
 const fs = require("fs-extra");
 const { createCanvas, loadImage } = require("canvas");
 const path = require("path");
+const archiver = require("archiver");
 
 const inputDir = "input_videos"; // Directory containing videos to process
 const frameSize = 1024; // Increase this for higher-quality frames
@@ -41,7 +42,7 @@ async function processVideo(videoFile) {
 
   if (!fs.existsSync(inputVideoPath)) {
     console.error(`Video file "${inputVideoPath}" does not exist.`);
-    return; 
+    return;
   }
 
   // Directory to save results
@@ -52,18 +53,18 @@ async function processVideo(videoFile) {
   )}-${timestamp}`;
   const framesDir = `${outputDir}/frames`;
   const sheetsDir = `${outputDir}/sheets`;
+  const zipDir = `${outputDir}/zip`;
+  const zipPath = `${zipDir}/sprite-sheets.zip`;
   await fs.ensureDir(framesDir);
   await fs.ensureDir(sheetsDir);
+  await fs.ensureDir(zipDir);
 
   console.log(`Output will be saved to: ${outputDir}`);
 
   console.log("Extracting frames...");
   await new Promise((resolve, reject) => {
     ffmpeg(inputVideoPath)
-      .outputOptions(
-        "-vf",
-        `scale=${frameSize}:${frameSize}`
-      )
+      .outputOptions("-vf", `scale=${frameSize}:${frameSize}`)
       .outputOptions("-c:v", "png") // Use PNG encoder
       .outputOptions("-pix_fmt", "rgba") // Preserve alpha channel
       .output(`${framesDir}/frame-%05d.png`)
@@ -120,8 +121,24 @@ async function processVideo(videoFile) {
     }
   }
 
-  console.log(
-    `All sprite sheets created successfully for "${videoFile}"!`
-  );
+  console.log("All sprite sheets created successfully!");
+
+  console.log("Creating ZIP archive...");
+  await createZip(sheetsDir, zipPath);
+  console.log(`ZIP archive created at: ${zipPath}`);
   console.log(`Check your results at: ${outputDir}`);
+}
+
+async function createZip(sourceDir, zipFilePath) {
+  return new Promise((resolve, reject) => {
+    const output = fs.createWriteStream(zipFilePath);
+    const archive = archiver("zip", { zlib: { level: 9 } });
+
+    output.on("close", resolve);
+    archive.on("error", reject);
+
+    archive.pipe(output);
+    archive.directory(sourceDir, false);
+    archive.finalize();
+  });
 }
