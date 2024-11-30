@@ -26,10 +26,10 @@ once you're in the repo, place your files into the input folder called "input_vi
 .wmv
 ```
 
-feel free to adjust Settings - completely optional:
-- go to modules/config.js file and modify the following variables if needed:
-- frameSize: The size of each frame in pixels. Increase this for higher-quality frames (default is 1024).
-- maxSheetSize: The maximum size of the sprite sheet canvas (default is 4096).
+feel free to adjust Settings - completely optional
+go to modules/config.js file and modify the following variables if needed:
+```- frameSize: The size of each frame in pixels. Increase this for higher-quality frames (default is 1024).
+- maxSheetSize: The maximum size of the sprite sheet canvas (default is 4096).```
 
 and then to run the script:
 ```
@@ -45,9 +45,9 @@ go to https://create.roblox.com/dashboard/credentials and create an API key
 
 copy the .env.example file to .env and fill in the required fields
 
-ROBLOX_API_KEY=YOUR_OPENAPI_KEY
+```ROBLOX_API_KEY=YOUR_OPENAPI_KEY
 ROBLOX_USER_ID=YOUR_ROBLOX_USER_ID
-ROBLOX_COOKIE=YOUR_ROBLOX_COOKIE - idk why i put this but just in case since i kept struggling lmao
+ROBLOX_COOKIE=YOUR_ROBLOX_COOKIE - idk why i put this but just in case since i kept struggling lmao```
 
 then run the script again - node index.js and it should ask a prompt if you would like to upload the spritesheets to roblox
 
@@ -56,9 +56,9 @@ answer y or n and it will upload the spritesheets to roblox
 it will process all the spritesheets and upload them to roblox & create a lua file with the asset ids of the spritesheets so you don't have to do it manually :)
 
 # output
-- the script will process each video in the input folder and create a spritesheet for each one
+```- the script will process each video in the input folder and create a spritesheet for each one
 - for each video, it extracts the frames and saves them in the results directory with a timestamped subfolder
-- frames are combined into sprite sheets saved in the sheets subdirectory within each video's results folder
+- frames are combined into sprite sheets saved in the sheets subdirectory within each video's results folder```
 
 # special notes
 - the script will not overwrite existing spritesheets
