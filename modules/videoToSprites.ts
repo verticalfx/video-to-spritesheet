@@ -1,6 +1,5 @@
 import { createCanvas, loadImage } from "canvas";
 import { ensureDir } from "fs-extra";
-// import { createWriteStream, existsSync, readdirSync, writeFileSync } from "fs";
 import { createWriteStream, existsSync, readdirSync } from "fs";
 import path from "path";
 import ffmpeg from "fluent-ffmpeg";
@@ -16,6 +15,7 @@ interface VideoToSpritesOptions {
   frameSize: number;
   maxSheetSize: number;
   threads: number;
+  frameRate: number;
 };
 
 interface ExtractFramesOptions {
@@ -23,6 +23,7 @@ interface ExtractFramesOptions {
   framesDir: string;
   frameSize: number;
   threads: number;
+  frameRate: number;
 };
 
 export type VideoToSpriteAnswers = {
@@ -30,11 +31,10 @@ export type VideoToSpriteAnswers = {
   frameSize: number;
   maxSheetSize: number;
   threads: number;
+  frameRate: number;
 };
 
-const EXTRACT_FPS = 30;
-
-export async function videoToSprites({ inputDir, frameSize, maxSheetSize, threads }: VideoToSpritesOptions) {
+export async function videoToSprites({ inputDir, frameSize, maxSheetSize, threads, frameRate }: VideoToSpritesOptions) {
   const Sheets: Array<{
     videoFile: string;
     sheets: Sheet[];
@@ -60,27 +60,27 @@ export async function videoToSprites({ inputDir, frameSize, maxSheetSize, thread
     console.log(`Found ${videoFiles.length} video(s) to process.`);
 
     for (const videoFile of videoFiles) {
-      const VideoSheets = await processVideo({ inputDir, videoFile, frameSize, maxSheetSize, threads });
+      const VideoSheets = await processVideo({ inputDir, videoFile, frameSize, maxSheetSize, threads, frameRate });
       if (VideoSheets && VideoSheets.length > 0) {
         Sheets.push({
           videoFile,
           sheets: VideoSheets,
         });
-      }
-    }
+      };
+    };
 
     return Sheets;
   } catch (err) {
-    console.error("Error:", err);
-  }
+    console.error("[VideoToSprites] Error:", err);
+  };
 }
 
-async function extractFrames({ inputVideoPath, framesDir, frameSize, threads }: ExtractFramesOptions) {
+async function extractFrames({ inputVideoPath, framesDir, frameSize, threads, frameRate }: ExtractFramesOptions) {
   await new Promise((resolve, reject) => {
     ffmpeg(inputVideoPath)
       .outputOptions(
         "-vf",
-        `fps=${EXTRACT_FPS},scale=${frameSize}:${frameSize}`
+        `fps=${frameRate},scale=${frameSize}:${frameSize}`
       )
       .outputOptions("-c:v", "png") // Use PNG encoder
       .outputOptions("-pix_fmt", "rgba") // Preserve alpha channel
@@ -143,8 +143,8 @@ async function generateSpriteSheets({
           }
           CanvasContext.drawImage(LoadedImage, Position.x, Position.y, frameSize, frameSize);
         } catch (error) {
-          console.error(`Failed to load image: ${frameFile}`, error);
-        }
+          console.error(`[GenerateSpriteSheets] Failed to load image: ${frameFile}`, error);
+        };
       })
     );
 
@@ -156,19 +156,19 @@ async function generateSpriteSheets({
     });
 
     console.log(`Saved ${SheetPath}`);
-  }
+  };
 
   return Sheets;
 }
 
-async function processVideo({ inputDir, videoFile, frameSize, maxSheetSize, threads }: VideoToSpritesOptions & { videoFile: string }) {
+async function processVideo({ inputDir, videoFile, frameSize, maxSheetSize, threads, frameRate }: VideoToSpritesOptions & { videoFile: string }) {
   const inputVideoPath = path.join(inputDir, videoFile);
   console.log(`Processing video: ${inputVideoPath}`);
 
   if (!existsSync(inputVideoPath)) {
     console.error(`Video file "${inputVideoPath}" does not exist.`);
     return; 
-  }
+  };
 
   // Directory to save results
   const Timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -177,37 +177,34 @@ async function processVideo({ inputDir, videoFile, frameSize, maxSheetSize, thre
     path.extname(videoFile)
   )}-${Timestamp}`;
 
-  const framesDir = `${OutputDir}/frames`;
-  const sheetsDir = `${OutputDir}/sheets`;
+  const FramesDir = `${OutputDir}/frames`;
+  const SheetsDir = `${OutputDir}/sheets`;
 
-  ensureDir(framesDir).catch(console.warn);
-  ensureDir(sheetsDir).catch(console.warn);
+  ensureDir(FramesDir).catch(console.warn);
+  ensureDir(SheetsDir).catch(console.warn);
 
   console.log(`Output will be saved to: ${OutputDir}`);
   console.log("Extracting frames...");
 
-  await extractFrames({ inputVideoPath, framesDir, frameSize, threads });
+  await extractFrames({ inputVideoPath, framesDir: FramesDir, frameSize, threads, frameRate });
 
   console.log("Frames extracted successfully!");
   console.log("Creating sprite sheets...");
 
-  const frameFiles = readdirSync(framesDir).filter((file) =>
+  const frameFiles = readdirSync(FramesDir).filter((file) =>
     file.endsWith(".png")
   );
   frameFiles.sort(); // Ensure frames are in order
 
   const Sheets = await generateSpriteSheets({
     frameFiles,
-    framesDir,
-    sheetsDir,
+    framesDir: FramesDir,
+    sheetsDir: SheetsDir,
     maxSheetSize,
     frameSize,
   });
 
-  console.log(
-    `All sprite sheets created successfully for "${videoFile}"!`
-  );
-
-  console.log(`Check your results at: ${OutputDir}`);
+  console.log(`All sprite sheets created successfully for "${videoFile}"!`);
+  console.log(`Check your sprite results at: ${OutputDir}`);
   return Sheets;
 }

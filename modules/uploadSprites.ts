@@ -11,7 +11,7 @@ const OPERATION_URL = (path: string) => `https://apis.roblox.com/assets/v1/${pat
 const GET_IMAGE_URL = (id: string) => `https://assetdelivery.roblox.com/v1/asset/?id=${id}`;
 const UPLOAD_URL = "https://apis.roblox.com/assets/v1/assets";
 
-const parser = new XMLParser();
+const Parser = new XMLParser();
 
 interface Asset {
   sheet: string;
@@ -64,28 +64,68 @@ export type Sheet = {
   file: string;
 };
 
+// Exponential Backoff
+async function exponentialBackoff<T>(
+  operation: () => Promise<T>,
+  maxRetries = 5,
+  baseDelay = 1000,
+  maxDelay = 16000
+): Promise<T> {
+  let retries = 0;
+
+  while (true) {
+    try {
+      return await operation();
+    } catch (err) {
+      retries++;
+
+      if (retries > maxRetries) {
+        console.error(`[ExponentialBackoff] Max retries reached. Error: ${err as string}`);
+        throw err;
+      }
+
+      const delay = Math.min(baseDelay * 2 ** (retries - 1), maxDelay);
+      console.log(`[ExponentialBackoff] Retrying in ${delay}ms (Attempt ${retries}/${maxRetries}). Error: ${err as string}`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+}
+
 function extractRobloxImageUrl(xml: string): string | null {
-  const JSONObject = parser.parse(xml) as RobloxImageXML;
+  const JSONObject = Parser.parse(xml) as RobloxImageXML;
 
   try {
     return JSONObject.roblox.Item.Properties.Content.url;
   } catch {
+    console.error(`[ExtractRobloxImageUrl] Error: Failed to extract image url from xml`);
     return null;
-  }
+  };
 }
 
 async function getOperation(operationPath: string): Promise<OperationResponse> {
   try {
-    const OperationResponse = await Axios.get<OperationResponse>(OPERATION_URL(operationPath), {
+    const operationResponse = await Axios.get<OperationResponse>(OPERATION_URL(operationPath), {
       headers: {
         "x-api-key": env.API_KEY,
       },
     });
-    return OperationResponse.data;
+    return operationResponse.data;
   } catch (err) {
-    console.error(err);
+    console.error(`[GetOperation] Error: ${err as string}`);
     throw err;
   }
+}
+
+async function pollOperationWithBackoff(operationPath: string): Promise<OperationResponse> {
+  return await exponentialBackoff<OperationResponse>(async () => {
+    const operationResult = await getOperation(operationPath);
+
+    if (!operationResult.done) {
+      throw new Error("Operation not done yet.");
+    }
+
+    return operationResult;
+  }, 10, 315, 15000);
 }
 
 async function uploadAsset({ sheet, uploadType, id }: UploadAssetOptions): Promise<string> {
@@ -124,9 +164,9 @@ async function uploadAsset({ sheet, uploadType, id }: UploadAssetOptions): Promi
 
     return UploadResponse.data.path;
   } catch (err) {
-    console.error(err);
+    console.error(`[UploadAsset] Error: ${err as string}`);
     throw err;
-  }
+  };
 }
 
 export async function uploadSpritesToRoblox({ sheets, uploadType, video, id }: UploadSpritesToRobloxOptions) {
@@ -135,41 +175,37 @@ export async function uploadSpritesToRoblox({ sheets, uploadType, video, id }: U
   if (sheets.length === 0) {
     console.error(`No sheets found`);
     return;
-  }
+  };
 
   console.log(`Uploading sprites for video: ${video}`);
+  let CurrentSheetIndex = 0;
 
   for (const sheet of sheets) {
     console.log(`Uploading asset for sheet: ${sheet.file}`);
 
     try {
-      const OperationPath = await uploadAsset({ sheet, uploadType, id });
+      const OperationPath = await exponentialBackoff(() => uploadAsset({ sheet, uploadType, id }));
       console.log(`Operation path received (uploaded): ${OperationPath}`);
 
-      let OperationResult: OperationResponse;
-      do {
-        console.log(`Polling operation: ${OperationPath}`);
-        OperationResult = await getOperation(OperationPath);
+      // Poll the operation with exponential backoff
+      const OperationResult = await pollOperationWithBackoff(OperationPath);
 
-        if (!OperationResult.done) {
-          await new Promise((resolve) => setTimeout(resolve, 800));
-        }
-      } while (!OperationResult.done);
-
-      if (OperationResult.response && OperationResult.response.assetId) {
+      if (OperationResult.response?.assetId) {
         Assets.push({
           sheet: sheet.file,
           assetId: OperationResult.response.assetId,
         });
 
+        CurrentSheetIndex++;
         console.log(`Asset fetched successfully: ${OperationResult.response.assetId}`);
+        console.log(`Progress: ${CurrentSheetIndex}/${sheets.length}`);
       } else {
         console.error("Operation completed but no assetId found.");
       }
     } catch (err) {
       console.error(`Failed to upload or retrieve asset for sheet: ${sheet.dir}, Error: ${err as string}`);
-    }
-  }
+    };
+  };
 
   // Sort by the numbers in their name (lowest to highest)
   Assets.sort((a, b) => {
@@ -183,17 +219,17 @@ export async function uploadSpritesToRoblox({ sheets, uploadType, video, id }: U
   });
 
   // Get images from the decal ids
-  for (let i = 0; i < Assets.length; i++) {
-    if (Assets[i] === undefined) continue;
+  for (let Index = 0; Index < Assets.length; Index++) {
+    if (Assets[Index] === undefined) continue;
 
-    const Asset = Assets[i] as Asset;
+    const Asset = Assets[Index] as Asset;
     const ImageResponse = await Axios.get<string>(GET_IMAGE_URL(Asset.assetId));
     const ImageFromDecal = extractRobloxImageUrl(ImageResponse.data);
   
     if (ImageFromDecal) {
-      Assets[i]!.assetId = ImageFromDecal;
-    }
-  }
+      Assets[Index]!.assetId = ImageFromDecal;
+    };
+  };
   
   // Ensure the directory exists
   ensureDir(UPLOADED_SPRITES_DIR).catch(console.warn);
@@ -202,12 +238,13 @@ export async function uploadSpritesToRoblox({ sheets, uploadType, video, id }: U
   const Timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const OutputDir = `${UPLOADED_SPRITES_DIR}/${video ? video : "sprite_sheet"}-${Timestamp}.luau`;
 
+  console.log(`Writing .luau file to: ${OutputDir}`);
   const LuauFile = createWriteStream(OutputDir);
   LuauFile.write(`return {\n`);
 
   for (let i = 0; i < Assets.length; i++) {
     LuauFile.write(`\t[${i + 1}] = "${Assets[i]?.assetId}"${i === Assets.length - 1 ? `` : `,`}\n`);
-  }
+  };
 
   LuauFile.write(`}`);
   LuauFile.end();
