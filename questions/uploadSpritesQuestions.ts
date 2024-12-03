@@ -1,10 +1,9 @@
 import env from "env";
 
 import type { DistinctQuestion } from "inquirer";
-import type { UploadSpritesAnswers } from "modules/uploadSprites";
+import type { UploadSpritesAnswers } from "utils/uploadSprites";
 
 export function getUploadSpritesQuestions(videoChoices: string[]): DistinctQuestion<UploadSpritesAnswers>[] {
-  console.log(videoChoices.filter(choice => choice !== "All").length);
   return [
     {
       type: "confirm",

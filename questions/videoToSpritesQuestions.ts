@@ -1,7 +1,7 @@
 import os from "os";
 
 import type { DistinctQuestion } from "inquirer";
-import type { VideoToSpriteAnswers } from "modules/videoToSprites";
+import type { VideoToSpriteAnswers } from "utils/videoToSprites";
 
 const DEFAULT_FRAME_RATE = 25;
 const DEFAULT_THREADS = os.cpus().length;

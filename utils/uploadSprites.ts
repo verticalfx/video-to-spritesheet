@@ -173,7 +173,7 @@ export async function uploadSpritesToRoblox({ sheets, uploadType, video, id }: U
   const Assets: Array<Asset> = [];
 
   if (sheets.length === 0) {
-    console.error(`No sheets found`);
+    console.error(`[UploadSpritesToRoblox] No sheets found`);
     return;
   };
 

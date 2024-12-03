@@ -1,11 +1,10 @@
-import { createCanvas, loadImage } from "canvas";
+import sharp from "sharp";
 import { ensureDir } from "fs-extra";
-import { createWriteStream, existsSync, readdirSync } from "fs";
+import { existsSync, readdirSync, writeFileSync } from "fs";
 import path from "path";
 import ffmpeg from "fluent-ffmpeg";
 import ffmpegPath from "@ffmpeg-installer/ffmpeg";
 
-import type { Canvas } from "canvas";
 import type { Sheet } from "./uploadSprites";
 
 ffmpeg.setFfmpegPath(ffmpegPath.path);
@@ -42,24 +41,24 @@ export async function videoToSprites({ inputDir, frameSize, maxSheetSize, thread
 
   try {
     if (!existsSync(inputDir)) {
-      console.error(`Input directory "${inputDir}" does not exist.`);
+      console.error(`[VideoToSprites] Input directory does not exist: ${inputDir}`);
       return;
     }
 
-    const videoFiles = readdirSync(inputDir).filter((file) => {
+    const VideoFiles = readdirSync(inputDir).filter((file) => {
       return [".mp4", ".mov", ".avi", ".mkv", ".flv", ".wmv"].includes(
         path.extname(file).toLowerCase()
       );
     });
 
-    if (videoFiles.length === 0) {
-      console.error(`No video files found in "${inputDir}".`);
+    if (VideoFiles.length === 0) {
+      console.error(`[VideoToSprites] No video files found in "${inputDir}".`);
       return;
     }
 
-    console.log(`Found ${videoFiles.length} video(s) to process.`);
+    console.log(`Found ${VideoFiles.length} video(s) to process.`);
 
-    for (const videoFile of videoFiles) {
+    for (const videoFile of VideoFiles) {
       const VideoSheets = await processVideo({ inputDir, videoFile, frameSize, maxSheetSize, threads, frameRate });
       if (VideoSheets && VideoSheets.length > 0) {
         Sheets.push({
@@ -93,17 +92,6 @@ async function extractFrames({ inputVideoPath, framesDir, frameSize, threads, fr
   });
 }
 
-function saveCanvasAsStream(canvas: Canvas, path: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const out = createWriteStream(path);
-    const stream = canvas.createPNGStream();
-
-    stream.pipe(out);
-    out.on("finish", resolve);
-    out.on("error", reject); // Handle potential errors
-  });
-}
-
 async function generateSpriteSheets({
   frameFiles,
   framesDir,
@@ -129,44 +117,66 @@ async function generateSpriteSheets({
 
   for (let i = 0; i < frameFiles.length; i += FramesPerSheet) {
     const Batch = frameFiles.slice(i, i + FramesPerSheet);
-    const CreatedCanvas = createCanvas(maxSheetSize, maxSheetSize);
-    const CanvasContext = CreatedCanvas.getContext("2d");
-
-    await Promise.all(
-      Batch.map(async (frameFile, idx) => {
-        try {
-          const LoadedImage = await loadImage(`${framesDir}/${frameFile}`);
-          const Position = PrecomputedPositions[idx];
-          if (!Position) {
-            console.error(`No precomputed position found for index: ${idx}`);
-            return;
+    const BlankCanvas = sharp({
+      create: {
+        width: maxSheetSize,
+        height: maxSheetSize,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      },
+    });
+  
+    // Prepare overlay operations
+    const OverlayOperations = (
+      await Promise.all(
+        Batch.map(async (frameFile, idx) => {
+          try {
+            const LoadedImage = await sharp(`${framesDir}/${frameFile}`).toBuffer();
+            const Position = PrecomputedPositions[idx];
+            if (!Position) {
+              console.error(`No precomputed position found for index: ${idx}`);
+              return null;
+            }
+  
+            return {
+              input: LoadedImage,
+              top: Position.y,
+              left: Position.x,
+            };
+          } catch (error) {
+            console.error(`[GenerateSpriteSheets] Failed to load image: ${frameFile}`, error);
+            return null;
           }
-          CanvasContext.drawImage(LoadedImage, Position.x, Position.y, frameSize, frameSize);
-        } catch (error) {
-          console.error(`[GenerateSpriteSheets] Failed to load image: ${frameFile}`, error);
-        };
-      })
-    );
-
+        })
+      )
+    ).filter(Boolean) as {
+      input: Buffer;
+      top: number;
+      left: number;
+    }[];
+  
+    // Composite the images onto the blank canvas & save them
+    const SpriteSheetBuffer = await BlankCanvas.composite(OverlayOperations).png().toBuffer();
     const SheetPath = `${sheetsDir}/sprite-sheet-${Sheets.length}.png`;
-    await saveCanvasAsStream(CreatedCanvas, SheetPath);
+    writeFileSync(SheetPath, SpriteSheetBuffer);
+  
     Sheets.push({
       dir: SheetPath,
       file: path.basename(SheetPath),
     });
-
+  
     console.log(`Saved ${SheetPath}`);
-  };
+  }
 
   return Sheets;
 }
 
 async function processVideo({ inputDir, videoFile, frameSize, maxSheetSize, threads, frameRate }: VideoToSpritesOptions & { videoFile: string }) {
-  const inputVideoPath = path.join(inputDir, videoFile);
-  console.log(`Processing video: ${inputVideoPath}`);
+  const InputVideoPath = path.join(inputDir, videoFile);
+  console.log(`Processing video: ${InputVideoPath}`);
 
-  if (!existsSync(inputVideoPath)) {
-    console.error(`Video file "${inputVideoPath}" does not exist.`);
+  if (!existsSync(InputVideoPath)) {
+    console.error(`Video file "${InputVideoPath}" does not exist.`);
     return; 
   };
 
@@ -186,18 +196,18 @@ async function processVideo({ inputDir, videoFile, frameSize, maxSheetSize, thre
   console.log(`Output will be saved to: ${OutputDir}`);
   console.log("Extracting frames...");
 
-  await extractFrames({ inputVideoPath, framesDir: FramesDir, frameSize, threads, frameRate });
+  await extractFrames({ inputVideoPath: InputVideoPath, framesDir: FramesDir, frameSize, threads, frameRate });
 
   console.log("Frames extracted successfully!");
   console.log("Creating sprite sheets...");
 
-  const frameFiles = readdirSync(FramesDir).filter((file) =>
+  const FrameFiles = readdirSync(FramesDir).filter((file) =>
     file.endsWith(".png")
   );
-  frameFiles.sort(); // Ensure frames are in order
+  FrameFiles.sort(); // Ensure frames are in order
 
   const Sheets = await generateSpriteSheets({
-    frameFiles,
+    frameFiles: FrameFiles,
     framesDir: FramesDir,
     sheetsDir: SheetsDir,
     maxSheetSize,

@@ -1,7 +1,12 @@
 import env from "env";
 
 import type { DistinctQuestion } from "inquirer";
-import type { UploadToRobloxAnswers } from "uploadSpritesToRoblox";
+
+export type UploadToRobloxAnswers = {
+  uploadType: "Group" | "User";
+  id: string;
+  inputSheetsDir: string;
+};
 
 export function getUploadSpritesToRobloxQuestions(): DistinctQuestion<UploadToRobloxAnswers>[] {
   return [

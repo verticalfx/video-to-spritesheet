@@ -1,17 +1,17 @@
 import inquirer from "inquirer";
 import env from "env";
-import { uploadSpritesToRoblox } from "modules/uploadSprites";
-import { videoToSprites } from "modules/videoToSprites";
+import { uploadSpritesToRoblox } from "utils/uploadSprites";
+import { videoToSprites } from "utils/videoToSprites";
 import { getUploadSpritesQuestions } from "questions/uploadSpritesQuestions";
 import { getVideoToSpritesQuestions } from "questions/videoToSpritesQuestions";
 
-import type { VideoToSpriteAnswers } from "modules/videoToSprites";
-import type { UploadSpritesAnswers } from "modules/uploadSprites";
+import type { VideoToSpriteAnswers } from "utils/videoToSprites";
+import type { UploadSpritesAnswers } from "utils/uploadSprites";
 
 async function finishedSpritePrompt(answers: VideoToSpriteAnswers) {
   const Sheets = await videoToSprites(answers);
   if (!Sheets || Sheets.length === 0) {
-    console.error("No sheets found");
+    console.error("[FinishedSpritePrompt] No sheets found");
     return;
   };
 

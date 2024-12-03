@@ -2,14 +2,10 @@ import env from "env";
 import { readdirSync } from "fs";
 import inquirer from "inquirer";
 import path from "path";
-import { uploadSpritesToRoblox } from "modules/uploadSprites";
+import { uploadSpritesToRoblox } from "utils/uploadSprites";
 import { getUploadSpritesToRobloxQuestions } from "questions/uploadSpritesToRobloxQuestions";
 
-export type UploadToRobloxAnswers = {
-  uploadType: "Group" | "User";
-  id: string;
-  inputSheetsDir: string;
-};
+import type { UploadToRobloxAnswers } from "questions/uploadSpritesToRobloxQuestions";
 
 async function finishedUploadPrompt(answers: UploadToRobloxAnswers) {
   let UploadType = answers.uploadType;
@@ -29,7 +25,7 @@ async function finishedUploadPrompt(answers: UploadToRobloxAnswers) {
 
   const Sheets = readdirSync(answers.inputSheetsDir);
   if (Sheets.length === 0) {
-    console.error("No sheets found");
+    console.error("[FinishedUploadPrompt] No sheets found");
     return;
   };
 
