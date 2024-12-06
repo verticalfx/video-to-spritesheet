@@ -219,6 +219,7 @@ export async function uploadSpritesToRoblox({ sheets, uploadType, video, id }: U
   });
 
   // Get images from the decal ids
+  console.log("[VideoToSprites] Getting images from decal ids");
   for (let Index = 0; Index < Assets.length; Index++) {
     if (Assets[Index] === undefined) continue;
 

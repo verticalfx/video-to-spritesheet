@@ -5,10 +5,10 @@ import { videoToSprites } from "utils/videoToSprites";
 import { getUploadSpritesQuestions } from "questions/uploadSpritesQuestions";
 import { getVideoToSpritesQuestions } from "questions/videoToSpritesQuestions";
 
-import type { VideoToSpriteAnswers } from "utils/videoToSprites";
+import type { VideoToSpritesOptions } from "utils/videoToSprites";
 import type { UploadSpritesAnswers } from "utils/uploadSprites";
 
-async function finishedSpritePrompt(answers: VideoToSpriteAnswers) {
+async function finishedSpritePrompt(answers: VideoToSpritesOptions) {
   const Sheets = await videoToSprites(answers);
   if (!Sheets || Sheets.length === 0) {
     console.error("[FinishedSpritePrompt] No sheets found");
