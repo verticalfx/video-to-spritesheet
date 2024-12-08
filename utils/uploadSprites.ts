@@ -95,7 +95,12 @@ function extractRobloxImageUrl(xml: string): string | null {
   const JSONObject = Parser.parse(xml) as RobloxImageXML;
 
   try {
-    return JSONObject.roblox.Item.Properties.Content.url;
+    const URL = JSONObject.roblox.Item.Properties.Content.url;
+    if (URL.startsWith("http://") || URL.startsWith("https://")) {
+      const AssetId = URL.match(/\d+/);
+      if (AssetId) return `rbxassetid://${AssetId[0]}`;
+    }
+    return URL;
   } catch {
     console.error(`[ExtractRobloxImageUrl] Error: Failed to extract image url from xml`);
     return null;
@@ -220,17 +225,24 @@ export async function uploadSpritesToRoblox({ sheets, uploadType, video, id }: U
 
   // Get images from the decal ids
   console.log("[VideoToSprites] Getting images from decal ids");
-  for (let Index = 0; Index < Assets.length; Index++) {
-    if (Assets[Index] === undefined) continue;
+  await Promise.all(Assets.map(async (Asset, Index) => {
+    if (Asset === undefined) return;
 
-    const Asset = Assets[Index] as Asset;
-    const ImageResponse = await Axios.get<string>(GET_IMAGE_URL(Asset.assetId));
-    const ImageFromDecal = extractRobloxImageUrl(ImageResponse.data);
-  
-    if (ImageFromDecal) {
-      Assets[Index]!.assetId = ImageFromDecal;
-    };
-  };
+    try {
+      const ImageResponse = await Axios.get<string>(GET_IMAGE_URL(Asset.assetId));
+      const ImageFromDecal = extractRobloxImageUrl(ImageResponse.data);
+      
+      if (ImageFromDecal) {
+        Assets[Index] = {
+          ...Asset,
+          assetId: ImageFromDecal,
+        };
+      };
+    } catch (err) {
+      console.error(`[GetImageFromDecal] Error: ${err as string}`);
+      return;
+    }
+  }));
   
   // Ensure the directory exists
   ensureDir(UPLOADED_SPRITES_DIR).catch(console.warn);
